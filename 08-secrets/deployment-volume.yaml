@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: secret-volume-demo
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: secret-volume-demo
+
+  template:
+    metadata:
+      labels:
+        app: secret-volume-demo
+
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+
+        volumeMounts:
+        - name: secret-volume
+          mountPath: /etc/secret
+          readOnly: true
+
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: db-secret-volume
