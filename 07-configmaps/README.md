@@ -4,82 +4,97 @@
 
 ## 📖 Introduction
 
-A ConfigMap is a Kubernetes API object used to store non-sensitive configuration data as key-value pairs. It allows configuration to be separated from the application code and Docker image, making applications more portable and easier to manage across different environments.
+A ConfigMap is a Kubernetes API object used to store non-sensitive configuration as key-value pairs. It separates configuration from the application code and Docker image, allowing the same container image to be deployed across multiple environments with different configurations.
 
-Instead of rebuilding a Docker image whenever a configuration changes, Kubernetes allows us to update the ConfigMap and provide the configuration to Pods.
+ConfigMaps can be consumed in two ways:
+
+- Environment Variables
+- Mounted Volumes
 
 ---
 
 ## 🎯 Objectives
 
-- Understand why ConfigMaps are required.
-- Learn how to create a ConfigMap.
-- Inject configuration into Pods using environment variables.
-- Verify configuration inside a running container.
-- Understand how ConfigMap updates affect running Pods.
-- Learn the difference between ConfigMaps and Secrets.
+- Understand the purpose of ConfigMaps.
+- Store application configuration separately from the Docker image.
+- Use ConfigMaps as environment variables.
+- Use ConfigMaps as mounted volumes.
+- Verify ConfigMap values inside a running container.
+- Understand how ConfigMap updates behave in different scenarios.
 
 ---
 
 ## ❓ Why do we need ConfigMaps?
 
-Imagine an application that connects to a database.
+Applications require configuration such as:
 
-```
-DATABASE_HOST=mysql.company.com
-LOG_LEVEL=INFO
-APP_ENV=Production
-```
+- Database host
+- Application environment
+- Log level
+- Feature flags
 
-If these values are hardcoded inside the application, every configuration change requires:
+Hardcoding these values inside the application means every configuration change requires rebuilding and redeploying the Docker image.
 
-- Updating the application code.
-- Building a new Docker image.
-- Pushing the image to a container registry.
-- Redeploying the application.
+ConfigMaps solve this problem by separating configuration from the application.
 
-This is inefficient.
+This follows the DevOps principle:
 
-ConfigMaps solve this problem by storing configuration separately from the application.
+> **Build Once, Deploy Everywhere**
 
-This follows one of the core DevOps principles:
-
-> **Build once, deploy everywhere.**
-
-The same Docker image can be deployed in Development, Testing, and Production while using different ConfigMaps for each environment.
+The same Docker image can be deployed in Development, Testing, and Production while using different ConfigMaps.
 
 ---
 
 ## 🏗️ Architecture
 
+### ConfigMap as Environment Variables
+
+```text
+ConfigMap
+     │
+     ▼
+Deployment
+     │
+     ▼
+Pod
+     │
+     ▼
+Environment Variables
 ```
-                ConfigMap
-                     │
-                     │
-     APP_ENV=Production
-     DATABASE_HOST=mysql.company.com
-     LOG_LEVEL=INFO
-                     │
-                     ▼
-               Deployment
-                     │
-                     ▼
-                    Pod
-                     │
-                     ▼
-                 Container
-                     │
-                     ▼
-          Environment Variables
+
+### ConfigMap as Volume
+
+```text
+ConfigMap
+     │
+     ▼
+Volume
+     │
+     ▼
+Deployment
+     │
+     ▼
+Pod
+     │
+     ▼
+/etc/config
+     │
+ ┌───────────────┐
+ │ APP_ENV       │
+ │ DATABASE_HOST │
+ │ LOG_LEVEL     │
+ └───────────────┘
 ```
 
 ---
 
 ## 📂 Files
 
-```
+```text
 configmap.yaml
 deployment.yaml
+configmap-volume.yaml
+deployment-volume.yaml
 README.md
 ```
 
@@ -87,47 +102,45 @@ README.md
 
 ## 💻 Commands Used
 
-Create the ConfigMap
+### Create ConfigMaps
 
 ```bash
 kubectl apply -f configmap.yaml
+
+kubectl apply -f configmap-volume.yaml
 ```
 
-Verify the ConfigMap
+### Verify ConfigMaps
 
 ```bash
 kubectl get configmaps
 
 kubectl describe configmap app-config
+
+kubectl describe configmap app-config-volume
 ```
 
-Deploy the application
+### Deploy Applications
 
 ```bash
 kubectl apply -f deployment.yaml
+
+kubectl apply -f deployment-volume.yaml
 ```
 
-Verify the Deployment
+### Verify Deployments
 
 ```bash
 kubectl get deploy
-```
 
-Verify the Pod
-
-```bash
 kubectl get pods
 ```
 
-Check environment variables inside the Pod
+### Verify Environment Variables
 
 ```bash
 kubectl exec -it <pod-name> -- env
-```
 
-Filter individual variables
-
-```bash
 kubectl exec -it <pod-name> -- env | grep APP
 
 kubectl exec -it <pod-name> -- env | grep DATABASE
@@ -135,34 +148,22 @@ kubectl exec -it <pod-name> -- env | grep DATABASE
 kubectl exec -it <pod-name> -- env | grep LOG
 ```
 
-Restart the Deployment
+### Verify Mounted Files
+
+```bash
+kubectl exec -it <pod-name> -- ls /etc/config
+
+kubectl exec -it <pod-name> -- cat /etc/config/APP_ENV
+
+kubectl exec -it <pod-name> -- cat /etc/config/DATABASE_HOST
+
+kubectl exec -it <pod-name> -- cat /etc/config/LOG_LEVEL
+```
+
+### Restart Deployment
 
 ```bash
 kubectl rollout restart deployment configmap-demo
-```
-
----
-
-## 🔄 Request Flow
-
-```
-ConfigMap
-
-↓
-
-Deployment
-
-↓
-
-Pod
-
-↓
-
-Container
-
-↓
-
-Environment Variables
 ```
 
 ---
@@ -170,12 +171,12 @@ Environment Variables
 ## 🧠 Concepts Learned
 
 - ConfigMaps store non-sensitive configuration.
-- Configuration is separated from the Docker image.
-- Applications become reusable across multiple environments.
-- ConfigMaps can inject values into containers as environment variables.
-- Running Pods do not automatically receive updated ConfigMap values when environment variables are used.
-- Pods must be restarted to read updated environment variables.
-- ConfigMaps should not store passwords or API keys.
+- Configuration should be separated from the application.
+- ConfigMaps can be consumed as environment variables.
+- ConfigMaps can also be mounted as volumes.
+- One ConfigMap key becomes one file when mounted as a volume.
+- Environment variable updates require Pod restart.
+- Mounted ConfigMap files are updated by Kubernetes; whether the application uses the new values immediately depends on whether it reloads its configuration.
 
 ---
 
@@ -183,88 +184,74 @@ Environment Variables
 
 ### What is a ConfigMap?
 
-A ConfigMap is a Kubernetes resource used to store non-sensitive configuration as key-value pairs. It allows configuration to be managed separately from the application container.
+A ConfigMap stores non-sensitive configuration as key-value pairs and separates configuration from the application.
 
 ---
 
-### Why do we use ConfigMaps?
+### What are the two ways to use a ConfigMap?
 
-ConfigMaps allow configuration to be updated without rebuilding the Docker image, making applications portable across multiple environments.
-
----
-
-### What type of data should be stored in a ConfigMap?
-
-Examples include:
-
-- Database host
-- Application environment
-- Log level
-- Feature flags
-- Application configuration
-
-Sensitive information such as passwords, tokens, and API keys should not be stored in ConfigMaps.
+- Environment Variables
+- Mounted Volumes
 
 ---
 
-### What happens when a ConfigMap is updated?
+### What happens if a ConfigMap is updated?
 
-When ConfigMaps are used as environment variables:
+**Environment Variables**
 
 - Running Pods continue using the old values.
-- Pods must be restarted to load the updated configuration.
+- Pod restart is required.
+
+**Mounted Volumes**
+
+- Kubernetes updates the mounted files.
+- Some applications automatically reload the updated files, while others require a reload or restart.
 
 ---
 
-### Difference between ConfigMap and Secret
+### Why shouldn't passwords be stored in ConfigMaps?
 
-| ConfigMap | Secret |
-|-----------|--------|
-| Stores non-sensitive configuration | Stores sensitive information |
-| Plain text | Base64 encoded (not encrypted by default) |
-| Database host, log level | Passwords, API keys, tokens |
+ConfigMaps store non-sensitive configuration.
+
+Passwords, API keys, tokens, and certificates should be stored in Kubernetes Secrets.
+
+---
+
+### If a ConfigMap contains 100 keys and is mounted as a volume, how many files are created?
+
+100 files.
+
+Each key becomes one file.
 
 ---
 
 ## ⚠️ Troubleshooting
 
-### ConfigMap key not found
+### Pod does not start
 
-Cause:
+Verify the ConfigMap exists.
 
-The Deployment references a key that does not exist in the ConfigMap.
-
-Example:
-
-```yaml
-key: DATABASE
+```bash
+kubectl get configmaps
 ```
-
-while the ConfigMap contains:
-
-```yaml
-DATABASE_HOST
-```
-
-Solution:
-
-Ensure the key names match exactly.
 
 ---
 
-### Updated ConfigMap but Pod still shows old values
+### ConfigMap key not found
 
-Cause:
+Ensure the key referenced in the Deployment matches the key in the ConfigMap.
 
-Environment variables are loaded only when the container starts.
+---
 
-Solution:
+### Updated ConfigMap but application still shows old values
 
-Restart the Deployment.
+If using environment variables:
 
 ```bash
 kubectl rollout restart deployment configmap-demo
 ```
+
+If using mounted volumes, verify whether the application supports dynamic configuration reloads.
 
 ---
 
@@ -273,11 +260,10 @@ kubectl rollout restart deployment configmap-demo
 Screenshots will be added later.
 
 - ConfigMap creation
-- kubectl get configmaps
-- kubectl describe configmap
-- kubectl get deploy
-- kubectl get pods
-- kubectl exec -- env
+- ConfigMap description
+- Deployment creation
+- Environment variables
+- Mounted ConfigMap files
 - ConfigMap update
 - Deployment restart
 
@@ -285,4 +271,7 @@ Screenshots will be added later.
 
 ## ✅ Summary
 
-In this practical, I created a ConfigMap to store application configuration separately from the Docker image. The ConfigMap was injected into a Deployment as environment variables, verified inside the running container, and updated to demonstrate that environment variable changes require a Pod restart. This practical highlights the importance of separating configuration from application code and follows the DevOps principle of **Build Once, Deploy Everywhere**.
+In this practical, I learned how to use Kubernetes ConfigMaps to manage non-sensitive configuration separately from the application image. I used ConfigMaps as both environment variables and mounted volumes, verified the configuration inside running containers, and understood the different behaviors when updating ConfigMaps. This demonstrates how Kubernetes enables reusable container images while keeping configuration flexible across environments.
+
+
+
