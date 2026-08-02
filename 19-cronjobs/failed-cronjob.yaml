@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: failed-cronjob
+
+spec:
+  schedule: "* * * * *"
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+
+      template:
+        spec:
+          containers:
+          - name: fail
+            image: busybox
+
+            command:
+            - sh
+            - -c
+            - exit 1
+
+          restartPolicy: Never
